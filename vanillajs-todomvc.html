@@ -304,7 +304,9 @@
             with(html) {
                 document.body.appendChild(                    
                     footer({'class':'info'},
-                        p('Double-click to edit a todo')
+                        p('Double-click to edit a todo'),
+                        p('Created from ', a({href:'https://todomvc.com/examples/vanillajs/#/', style: {color:'blue'}}, 'todomvc.com'), ' (Oscar Godson/Christoph Burgmer)'),
+                        p('This version is available on ', a({href: 'https://github.com/jmlamare/websamples/blob/main/vanillajs-todomvc.html', style: {color:'blue'}}, 'github'), ' (Jean-Marie LAMARE)')
                     )
                 );
             }
