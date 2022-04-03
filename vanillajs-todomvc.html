@@ -219,9 +219,9 @@
                     footer({'class':'footer'},
                         appcount = span({'class':'todo-count'}),
                         ul({'class':'filters'},
-                            li(appfilters['all']=a({'href':'#', 'class':'selected'},'All')),
-                            li(appfilters['active']=a({'href':'#active', 'class':''},'Active')),
-                            li(appfilters['completed']=a({'href':'#completed', 'class':''},'Completed'))
+                            li(appfilters['all']=a({'href':window.location.href.replace(/#+[a-z]*$/,'') + '#', 'class':'selected'},'All')), // Fix for html preview
+                            li(appfilters['active']=a({'href':window.location.href.replace(/#+[a-z]*$/,'') + '#active', 'class':''},'Active')),
+                            li(appfilters['completed']=a({'href':window.location.href.replace(/#+[a-z]*$/,'') + '#completed', 'class':''},'Completed'))
                         ),
                         apppurge = button({'class':'clear-completed'}, 'Clear Completed')
                     )
