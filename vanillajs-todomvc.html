@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+https://blog.logrocket.com/virtual-scrolling-core-principles-and-basic-implementation-in-react/
+-->
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<meta name="theme-color" content="#000000">
+
+	<title>TodoMVC vanillajs</title>
+    <link rel="stylesheet" href="https://todomvc.com/examples/vanillajs/node_modules/todomvc-app-css/index.css">
+
+</head>
+
+<body>
+    <!--
+    <section class="todoapp">
+        <header class="header">
+            <h1>todos</h1>
+            <input class="new-todo" placeholder="What needs to be done?" autofocus>
+        </header>
+        <section id="main" class="main">
+            <input id="toggle-all" class="toggle-all" type="checkbox">
+            <label for="toggle-all">Mark all as complete</label>
+
+            <ul class="todo-list">
+                <li data-id="1648987039175" class="editing">
+                    <div class="view"><input class="toggle" type="checkbox"><label>test</label><button class="destroy"></button></div>
+                    <input class="edit"/>
+                </li>
+                <li data-id="1648987039175" class="">
+                    <div class="view"><input class="toggle" type="checkbox"><label>test</label><button class="destroy"></button></div>
+                    <input class="edit"/>
+                </li>
+            </ul>
+        </section>
+        <footer class="footer">
+            <span class="todo-count"></span>
+            <ul class="filters">
+                <li>
+                    <a href="#/" class="selected">All</a>
+                </li>
+                <li>
+                    <a href="#/active">Active</a>
+                </li>
+                <li>
+                    <a href="#/completed">Completed</a>
+                </li>
+            </ul>
+            <button class="clear-completed">Clear completed</button>
+        </footer>
+    </section>
+    <footer class="info">
+        <p>Double-click to edit a todo</p>
+    </footer>
+    -->
+    <script>
+
+        var html = (function() {
+            function factory(element, items) {
+                for(let item of items) {
+                    if(Array.isArray(item)) {
+                        factory(element, item);
+                    } else if(item instanceof HTMLElement) {
+                        element.appendChild(item);
+                    } else if(item instanceof Function) {
+                        item(element);
+                    } else if(typeof item === "string") {
+                        element.appendChild(document.createTextNode(item));
+                    } else if(typeof item === "object" ) {
+                        let {style,dataset,...attributes} = item;
+                        for (let a in attributes) {
+                            element.setAttribute(a, attributes[a]);
+                        }
+                        if(typeof style === "string") {
+                            element.setAttribute('style', style);
+                        } else for (let s in style) {
+                            element.style[s] = style[s]
+                        }
+                        if(typeof dataset === "string") {
+                            element.setAttribute('dataset', style);
+                        } else for (let d in dataset) {
+                            element.dataset[d] = dataset[d];
+                        }
+                    }
+                }
+                return element;
+            }
+
+            return [
+                    'html','head','title','base','link','meta','style','script',
+                    'noscript','body','section','nav','article','aside','h1','h2',
+                    'h3','h4','h5','h6','hgroup','header','footer','address','main',
+                    'p','hr','pre','blockquote','ol','ul','li','dl','dt','dd',
+                    'figure','figcaption','div','a','em','strong','small','s','cite',
+                    'q','dfn','abbr','data','time','code','var','samp','kbd','sub',
+                    'sup','i','b','u','mark','ruby','rt','rp','bdi','bdo','span','br',
+                    'wbr','ins','del','img','iframe','embed','object','param','video',
+                    'audio','source','track','canvas','map','area','svg','math',
+                    'table','caption','colgroup','col','tbody','thead','tfoot','tr',
+                    'td','th','form','fieldset','legend','label','input','button',
+                    'select','datalist','optgroup','option','textarea','keygen',
+                    'output','progress','meter','details','summary','command','menu'
+            ].reduce(function(obj, tag) {
+                obj[tag] = function(...items) {
+                    return factory(document.createElement(tag), items);
+                }
+                return obj;
+            }, {});
+        })()
+
+        function renderer(element, updater, state) {
+            return function apply(item) {
+                if(item==null) {
+                    if(element.parentNode) element.parentNode.removeChild(element);
+                    return apply;
+                } else if(item instanceof HTMLElement) {
+                    if(element.parentNode) element.parentNode.removeChild(element);
+                    item.appendChild(element);
+                    return apply;
+                } else if(item instanceof Function) {
+                    return item.call(this, {element: element, state: state, view: apply});
+                } else if(Array.isArray(item)) {
+                    updater(state = item);
+                    return apply;
+                } else {
+                    updater(Object.assign(state, item));
+                    return apply
+                }
+            }
+        }
+
+        function renderTodo(_options) {
+            let todoRoot, todoText, todoDel, todoDone, todoEdit, view;
+            let {onTodoChange,onTodoDelete,...options} = Object.assign({
+                onTodoChange: function(){},
+                onTodoDelete: function(){}
+            }, _options ||{});
+
+            with(html) {
+                todoRoot = li({dataset: {id:-1}}, 
+                    div({class: "view"},
+                        todoDone = input({ class:"toggle", type:"checkbox" }),
+                        todoText = label(""),
+                        todoDel = button({ class:"destroy" })
+                    ),
+                    todoEdit = input({class: "edit", value: ""})
+                );
+            }
+            todoText.addEventListener('dblclick', function(event){
+                todoRoot.classList.add('editing');
+                todoEdit.focus();
+            });
+            todoEdit.addEventListener('change', function(event){
+                onTodoChange(todoRoot.dataset.id, "title", this.value);
+                setTimeout(function() { this.focus();}, 0)
+            });
+            todoRoot.addEventListener('keyup', function(event){
+                if (event.keyCode === 27) {
+                    todoRoot.classList.remove("editing");
+                    this.blur();
+                    view({})
+                }
+            })
+            todoDone.addEventListener('change', function(event) {
+                onTodoChange(todoRoot.dataset.id, "status", this.checked ? 'completed' : 'active')
+            });
+            todoDel.addEventListener('click', function(event){
+                onTodoDelete(todoRoot.dataset.id);
+            });
+            return view = renderer(todoRoot, function({id, title, status}) {
+                todoRoot.dataset.id = id;
+                todoRoot.classList.remove("editing");
+                todoText.textContent = title;
+                todoEdit.value = title
+                todoDone.checked = status=="completed";
+            }, {
+                id:0,
+                title: "",
+                status: "unknown"
+            })
+        }
+
+        function renderTodos(options) {
+            let todosRoot = html.ul({'class':'todo-list'});
+            let todoItems = [];
+            
+            return renderer(todosRoot, function(todos){
+                let max = Math.min(todoItems.length, todos.length);
+                for(let idx = 0; idx<max; idx++) {
+                    todoItems[idx](todos[idx])(todosRoot);
+                }
+                while(todoItems.length>max) {
+                    todoItems[max++](null);
+                }
+                while(todoItems.length<todos.length) {
+                    todoItems.push(renderTodo(options)(todos[todoItems.length])(todosRoot));
+                }
+            }, [])
+        }
+
+        function renderApp(_options) {
+            let view, approot, appcount, apptodo, apptodos, apppurge, appfilters = {};
+            let {onTodoAppend, onTodoPurge, onTodoFilter, onTodoChange,...options} = Object.assign({
+                onTodoChange: function(){},
+                onTodoAppend: function(){},
+                onTodoPurge: function(){},
+                onTodoFilter: function(){}
+            }, _options ||{});
+            with(html) {
+                approot = section({'class':'todoapp'},
+                    header({'class':'header'},
+                        h1("todos"),
+                        apptodo = input({'class': 'new-todo', 'placeholder':'What needs to be done?', 'autofocus':true})
+                    ),
+                    section({'class':'main'},
+                        appreset = input({'id':'toogle-all','class': 'toggle-all','type':'checkbox'}),
+                        label({'for':'toogle-all'}, 'Mark all as complete'),
+                        apptodos = renderTodos(Object.assign(options, {onTodoChange: onTodoChange}))
+                    ),
+                    footer({'class':'footer'},
+                        appcount = span({'class':'todo-count'}),
+                        ul({'class':'filters'},
+                            li(appfilters['all']=a({'href':'#', 'class':'selected'},'All')),
+                            li(appfilters['active']=a({'href':'#active', 'class':''},'Active')),
+                            li(appfilters['completed']=a({'href':'#completed', 'class':''},'Completed'))
+                        ),
+                        apppurge = button({'class':'clear-completed'}, 'Clear Completed')
+                    )
+                );
+            }
+            apptodo.addEventListener('change', function(event){
+                onTodoAppend(this.value);
+                this.value = '';
+            });
+            apppurge.addEventListener('click', function(event) {
+                onTodoPurge();
+            })
+            appreset.addEventListener('click', function(event) {
+                view(function({state}){
+                    for(let todo of state.todos) {
+                        onTodoChange(todo.id, 'status', appreset.checked ? 'completed' : 'active');
+                    }
+                })
+            })
+            for(let status in appfilters) {
+                appfilters[status].addEventListener('click', function(event) {
+                    onTodoFilter(status);
+                });
+            }
+            return view = renderer(approot,function({filter, todos}) {
+                for(let status in appfilters) {
+                    appfilters[status].classList.remove('selected');
+                }
+                if(appfilters[filter]) {
+                    appfilters[filter].classList.add('selected');
+                }
+                apptodos(filter=='all' ? todos : todos.filter(i=>i.status==filter));
+                appcount.textContent = todos.filter(i=>i.status=='active').length + ' item(s) left';
+                apppurge.style.display = todos.find(i=>i.status=='completed') ? '' : 'none';
+            }, {
+                todos: [],
+                filter: 'all'
+            })
+        }
+
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const dbName = 'todomvc-vanillajs';
+            let model = {
+                filter: document.location.hash.replace(/^#\/?/,"").toLowerCase() || 'all',
+                todos: JSON.parse(localStorage.getItem(dbName) || '[]')
+            };
+            let appView = renderApp({
+                onTodoChange: function(id, attr, value){ 
+                    model.todos.find(i=>i.id==id)[attr] = value;
+                    localStorage.setItem(dbName, JSON.stringify(model.todos));
+                    appView(model);
+                },
+                onTodoDelete: function(id){
+                    let i = model.todos.findIndex(i=>i.id==id);
+                    if(i>=0) model.todos.splice(i,1)
+                    localStorage.setItem(dbName, JSON.stringify(model.todos));
+                    appView(model);
+                },
+                onTodoAppend: function(title) {
+                    model.todos.push({
+                        id: model.todos.reduce((id,todo)=>Math.max(id,todo.id), 0) + 1,
+                        title: title,
+                        status: 'active'
+                    })
+                    localStorage.setItem(dbName, JSON.stringify(model.todos));
+                    appView(model);
+                },
+                onTodoPurge: function() {
+                    model.todos = model.todos.filter(todo=>todo.status=='active');
+                    document.location.hash = (model.filter = 'all');
+                    appView(model);
+                },
+                onTodoFilter: function(status) {
+                    model.filter = status;
+                    appView(model);
+                }
+            })(document.body)(model)
+
+            with(html) {
+                document.body.appendChild(                    
+                    footer({'class':'info'},
+                        p('Double-click to edit a todo')
+                    )
+                );
+            }
+
+        }, false);
+
+
+    </script>
+</body>
+
+</html>

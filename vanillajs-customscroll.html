@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+https://blog.logrocket.com/virtual-scrolling-core-principles-and-basic-implementation-in-react/
+-->
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<meta name="theme-color" content="#000000">
+
+	<title>Custom Scrolling</title>
+    <style>
+        body {
+          font-family: sans-serif;
+        }
+        .row {
+          text-align: center;
+          vertical-align: middle;
+          line-height: 50px;
+          background: #dafff5;
+          max-width: 80%;
+          margin: 0 auto;
+          box-shadow: 0 0 1px 0 rgba(0, 0, 0, 0.5);
+        }
+        .viewport {
+          padding-top: 1px;
+        }
+    </style>
+</head>
+
+<body>
+    <div style="overflow: auto; user-select: none;">
+        <div id="scoller" style="
+    height: 100px;
+    width: 100px;
+    border-radius: 5px;
+    background-color: blue;
+    position: absolute;
+    right: 10px;
+    z-index: 1000;"></div>
+        <div class="viewport" style="overflow: hidden; will-change: transform; position: relative;">
+            
+            <div id="rows" style="will-change: transform; transform: translateY(0px);">
+                <div class="row">
+                    FIBBONACCI(<span id="x"></span>) = <span id="y"></span>
+                </div>
+            </div>
+            <div id="rows" style="will-change: transform; transform: translateY(0px);">
+                <div class="row">
+                    FIBBONACCI(<span id="x"></span>) = <span id="y"></span>
+                </div>
+            </div>
+            <div id="rows" style="will-change: transform; transform: translateY(0px);">
+                <div class="row">
+                    FIBBONACCI(<span id="x"></span>) = <span id="y"></span>
+                </div>
+            </div>
+            <div id="rows" style="will-change: transform; transform: translateY(0px);">
+                <div class="row">
+                    FIBBONACCI(<span id="x"></span>) = <span id="y"></span>
+                </div>
+            </div>
+
+            <!--
+            <table id="rows" style="will-change: transform; transform: translateY(0px); width:100%">
+                <tr class="row">
+                    <td style="width: 50%;">x=<span class="x">%N%</span></td>
+                    <td>y=<span class="y">%R%</span></td>
+                </tr>
+            </table>
+            -->
+        </div>
+    </div>
+    <script>
+        function logger(eventName) {
+            return function(e) {
+                var point = e.touches ? e.touches[0] : e;
+                // e.preventDefault();
+                // console.log(eventName + ":" + point.pageY);
+                console.log(eventName);
+                // return true;
+            }
+        }
+
+        var eventType = {
+            touchstart: 1,
+            touchmove: 1,
+            touchend: 1,
+            touchout: 1,
+
+            mousedown: 2,
+            mousemove: 2,
+            mouseup: 2,
+            mouseout: 2,
+
+            pointerdown: 3,
+            pointermove: 3,
+            pointerup: 3
+        };
+        // https://codepen.io/onyx/pen/rWLyMm
+        document.addEventListener('DOMContentLoaded', function() {
+            var initiated = 0;
+            var scroller = document.getElementById("scoller");
+            var moved = false;
+            var y = 0,  pointY = 0;
+            function addEvent(events, fn, both) {
+                events.forEach(function(eventName) {
+                    scroller.addEventListener(eventName, fn, true);
+                    if(both) scroller.parentElement.addEventListener(eventName, fn, true);
+                })
+            }
+            ///*
+            ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'pointerout', 'mousedown', 'mousemove', 'mouseup', 'mousecancel', 'mouseout'].forEach( function(eventName) {
+                scroller.addEventListener(eventName, logger(eventName), true);
+                scroller.parentElement.addEventListener(eventName, logger(eventName), true);
+            });
+            //*/
+            addEvent(['pointerdown','mousedown'], function(e){
+                if(e.button==0) {
+                    var point = e.touches ? e.touches[0] : e;
+                    pointY = point.pageY;
+                    initiated = eventType[e.type];
+                }
+            }, false)
+            addEvent(['pointermove', 'mousemove'], function(e){
+                if(eventType[e.type]==initiated) {
+                    var point = e.touches ? e.touches[0] : e;
+                    var delta = point.pageY - pointY;
+                    y += delta;
+                    pointY = point.pageY;
+                    // console.log(y)
+                    scroller.style.transform = "translateY(" + y + "px)";
+                }
+            }, true)
+            addEvent(['pointerup','mouseup','pointercancel','mousecancel'], function(e){
+                if(eventType[e.type]==initiated) {
+                    initiated = 0;
+                }
+            }, true)
+
+        });
+    </script>
+    <!--
+    <script>
+        function* fibonacci(size) {
+          let current = 0;
+          let next = 1;
+          while (--size>=0) {
+            yield current;
+            [current, next] = [next, next + current];
+          }
+        }
+
+        function listing(element, options) {
+            const viewport = element.parentElement;
+            const scroller = viewport.parentElement;
+            const template = document.createDocumentFragment();
+            template.appendChild(element.firstElementChild);
+            scroller.onscroll = scroll;
+            window.addEventListener('resize', resize);
+            // template.remove();
+
+            var count = 0;
+            var state = {
+                tolerance: 1,
+                viewportHeight: 200,
+                itemHeight: 20,
+                amount: 1,
+                renderers: Array()
+            }; 
+            Object.assign(state, options);
+            state.renderers.push(refresher());
+
+            resize();
+            return resize;
+
+            function refresher() {
+                var item = template.cloneNode(true);
+                var renderer = state.renderer(item);
+                item.id = "item" + (count++);
+                element.appendChild(item.firstElementChild);
+                return renderer;
+            }
+
+            function scroll() {
+                const top = scroller.scrollTop;
+                const start = Math.floor(top / state.itemHeight);
+                const stop  = Math.ceil((top + state.viewHeight) / state.itemHeight) + 1;
+                const first = Math.max(0       , start - state.tolerance);
+                const last  = Math.min(state.datasize, stop  + state.tolerance);
+                const count = Math.min(last-first, state.renderers.length)
+                const trans = state.itemHeight * first
+                rows.style.transform = "translateY(" + trans + "px)";
+                if(state.first != first || state.count != count) {
+                    // console.log(start + "-" + stop)
+                    for(var i=0; i<count;i++) {
+                        state.update(first + i, state.renderers[i]);
+                    }
+                }
+            }
+
+            function resize() {
+                const item       = element.firstElementChild;
+                const itemStyle  = window.getComputedStyle(item);
+                const bodyStyle  = window.getComputedStyle(document.body)
+                state.itemHeight = parseInt(itemStyle.getPropertyValue("height"));
+                state.itemHeight+= parseInt(itemStyle.getPropertyValue("margin-top"));
+                state.itemHeight+= parseInt(itemStyle.getPropertyValue("margin-bottom"));
+                state.itemHeight+= parseInt(itemStyle.getPropertyValue("border-top"));
+                state.itemHeight+= parseInt(itemStyle.getPropertyValue("border-bottom"));
+                state.viewHeight = window.innerHeight;
+                state.viewHeight-= parseInt(bodyStyle.getPropertyValue("margin-top"));
+                state.viewHeight-= parseInt(bodyStyle.getPropertyValue("margin-bottom"));
+                state.viewHeight-= parseInt(bodyStyle.getPropertyValue("border-top"));
+                state.viewHeight-= parseInt(bodyStyle.getPropertyValue("border-bottom"));
+                state.amount     = Math.ceil(state.viewHeight / state.itemHeight) + 2 * state.tolerance;
+                while(state.renderers.length < state.amount) {
+                    state.renderers.push(refresher());
+                }
+                scroller.style.height = state.viewHeight + "px";
+                viewport.style.height = (state.datasize * state.itemHeight) + "px";
+
+                scroll();
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            var datas = Array.from(fibonacci(100));
+            listing(document.getElementById("rows"), {
+                datasize: datas.length, 
+                renderer: function(item) {
+                    var x = item.getElementById("x");
+                    var y = item.getElementById("y");
+                    var b = document.createElement("button");
+                    b.onclick = function() {
+                        b.textContent = "click";
+                    }
+                    item.firstElementChild.appendChild(b);
+                    return function(data) {
+                        b.textContent = "!"
+                        x.textContent = data.x;
+                        y.textContent = data.y;
+                    }
+                },
+                update: function(i, render) {
+                    render({x:i, y:datas[i]});
+                }
+            });
+
+        }, false);
+
+
+    </script>
+-->
+</body>
+
+</html>
