@@ -107,28 +107,8 @@
             }, {});
         })()
 
-        function renderer(element, updater, state) {
-            return function apply(item) {
-                if(item==null) {
-                    if(element.parentNode) element.parentNode.removeChild(element);
-                    return apply;
-                } else if(item instanceof HTMLElement) {
-                    if(element.parentNode) element.parentNode.removeChild(element);
-                    item.appendChild(element);
-                    return apply;
-                } else if(item instanceof Function) {
-                    return item.call(this, {element: element, state: state, view: apply});
-                } else if(Array.isArray(item)) {
-                    updater(state = item);
-                    return apply;
-                } else {
-                    updater(Object.assign(state, item));
-                    return apply
-                }
-            }
-        }
-
         function renderTodo(_options) {
+            let state = {};
             let todoRoot, todoText, todoDel, todoDone, todoEdit, view;
             let {onTodoChange,onTodoDelete,...options} = Object.assign({
                 onTodoChange: function(){},
@@ -145,60 +125,73 @@
                     todoEdit = input({class: "edit", value: ""})
                 );
             }
-            todoText.addEventListener('dblclick', function(event){
-                todoRoot.classList.add('editing');
-                todoEdit.focus();
-            });
-            todoEdit.addEventListener('change', function(event){
-                onTodoChange(todoRoot.dataset.id, "title", this.value);
-                setTimeout(function() { this.focus();}, 0)
-            });
-            todoRoot.addEventListener('keyup', function(event){
-                if (event.keyCode === 27) {
-                    todoRoot.classList.remove("editing");
-                    this.blur();
-                    view({})
+            /* Binding */{
+                todoText.addEventListener('dblclick', function(event){
+                    todoRoot.classList.add('editing');
+                    todoEdit.focus();
+                });
+                todoEdit.addEventListener('change', function(event){
+                    onTodoChange(state.id, "title", this.value);
+                    setTimeout(function() { this.focus();}, 0)
+                });
+                todoRoot.addEventListener('keyup', function(event){
+                    if (event.keyCode === 27) {
+                        todoRoot.classList.remove("editing");
+                        this.blur();
+                        hydrate({})
+                    }
+                })
+                todoDone.addEventListener('change', function(event) {
+                    onTodoChange(state.id, "status", this.checked ? 'completed' : 'active')
+                });
+                todoDel.addEventListener('click', function(event){
+                    onTodoDelete(state.id);
+                });
+            }
+            return function hydrate (arg) {
+                if(!arg || arg instanceof HTMLElement) { // mount or unmount DOM
+                    if(todoRoot.parentNode) todoRoot.parentNode.removeChild(todoRoot);
+                    if(arg) arg.appendChild(todoRoot);
+                } else { // hydrate
+                    let {id, title, status} = state = Object.assign(state, arg);
+                    todoRoot.dataset.id = id;
+                    todoRoot.classList.remove("editing", "all", "completed", "active");
+                    todoText.textContent = title;
+                    todoEdit.value = title
+                    todoDone.checked = status=="completed";
+                    todoRoot.classList.add(status);
                 }
-            })
-            todoDone.addEventListener('change', function(event) {
-                onTodoChange(todoRoot.dataset.id, "status", this.checked ? 'completed' : 'active')
-            });
-            todoDel.addEventListener('click', function(event){
-                onTodoDelete(todoRoot.dataset.id);
-            });
-            return view = renderer(todoRoot, function({id, title, status}) {
-                todoRoot.dataset.id = id;
-                todoRoot.classList.remove("editing", "all", "completed", "active");
-                todoText.textContent = title;
-                todoEdit.value = title
-                todoDone.checked = status=="completed";
-                todoRoot.classList.add(status);
-            }, {
-                id:0,
-                title: "",
-                status: "unknown"
-            })
+                return hydrate;
+            }
         }
 
         function renderTodos(options) {
             let todosRoot = html.ul({'class':'todo-list'});
             let todoItems = [];
             
-            return renderer(todosRoot, function(todos){
-                let max = Math.min(todoItems.length, todos.length);
-                for(let idx = 0; idx<max; idx++) {
-                    todoItems[idx](todosRoot)(todos[idx]);
+            return function hydrate(arg) {
+                if(!arg || arg instanceof HTMLElement) { // mount or unmount DOM
+                    if(todosRoot.parentNode) todosRoot.parentNode.removeChild(todosRoot);
+                    if(arg) arg.appendChild(todosRoot);
+                } else { // hydrate DOM
+                    let todos = arg;
+                    let max = Math.min(todoItems.length, todos.length);
+                    for(let idx = 0; idx<max; idx++) { // Refresh existing 
+                        todoItems[idx](todosRoot)(todos[idx]);
+                    }
+                    while(todoItems.length>max) { // Remove superfluous 
+                        todoItems[max++](null);
+                    }
+                    while(todoItems.length<todos.length) { // Add missing
+                        todoItems.push(renderTodo(options)(todosRoot)(todos[todoItems.length]));
+                    }
                 }
-                while(todoItems.length>max) {
-                    todoItems[max++](null);
-                }
-                while(todoItems.length<todos.length) {
-                    todoItems.push(renderTodo(options)(todosRoot)(todos[todoItems.length]));
-                }
-            }, [])
+                return hydrate;
+            }
         }
 
         function renderApp(_options) {
+            let state = {}
             let view, approot, appcount, apptodo, apptodos, apppurge, appfilters = {};
             let {onTodoAppend, onTodoPurge, onTodoFilter, onTodoChange,...options} = Object.assign({
                 onTodoChange: function(){},
@@ -228,39 +221,44 @@
                     )
                 );
             }
-            apptodo.addEventListener('change', function(event){
-                onTodoAppend(this.value);
-                this.value = '';
-            });
-            apppurge.addEventListener('click', function(event) {
-                onTodoPurge();
-            })
-            appreset.addEventListener('click', function(event) {
-                view(function({state}){
-                    for(let todo of state.todos) {
+            /* Binding */{
+                apptodo.addEventListener('change', function(event){
+                    onTodoAppend(this.value);
+                    this.value = '';
+                });
+                apppurge.addEventListener('click', function(event) {
+                    onTodoPurge();
+                })
+                appreset.addEventListener('click', function(event) {
+                    for(let todo of state.todos || []) {
                         onTodoChange(todo.id, 'status', appreset.checked ? 'completed' : 'active');
                     }
                 })
-            })
-            for(let status in appfilters) {
-                appfilters[status].addEventListener('click', function(event) {
-                    onTodoFilter(status);
-                });
-            }
-            return view = renderer(approot,function({filter, todos}) {
                 for(let status in appfilters) {
-                    appfilters[status].classList.remove('selected');
+                    appfilters[status].addEventListener('click', function(event) {
+                        onTodoFilter(status);
+                    });
                 }
-                if(appfilters[filter]) {
-                    appfilters[filter].classList.add('selected');
+            }
+
+            return function hydrate(arg) {
+                if(!arg || arg instanceof HTMLElement) { // mount / unmount DOM
+                    if(approot.parentNode) approot.parentNode.removeChild(approot);
+                    if(arg) arg.appendChild(approot);
+                } else { // hydrate DOM
+                    let {filter, todos} = state = Object.assign(state, arg);
+                    for(let status in appfilters) {
+                        appfilters[status].classList.remove('selected');
+                    }
+                    if(appfilters[filter]) {
+                        appfilters[filter].classList.add('selected');
+                    }
+                    apptodos(filter=='all' ? todos : todos.filter(i=>i.status==filter));
+                    appcount.textContent = todos.filter(i=>i.status=='active').length + ' item(s) left';
+                    apppurge.style.display = todos.find(i=>i.status=='completed') ? '' : 'none';
                 }
-                apptodos(filter=='all' ? todos : todos.filter(i=>i.status==filter));
-                appcount.textContent = todos.filter(i=>i.status=='active').length + ' item(s) left';
-                apppurge.style.display = todos.find(i=>i.status=='completed') ? '' : 'none';
-            }, {
-                todos: [],
-                filter: 'all'
-            })
+                return hydrate;
+            }
         }
 
         
@@ -308,7 +306,7 @@
                     footer({'class':'info'},
                         p('Double-click to edit a todo'),
                         p('Created from ', a({href:'https://todomvc.com/examples/vanillajs/#/', style: {color:'blue'}}, 'todomvc.com'), ' (Oscar Godson/Christoph Burgmer)'),
-                        p('This version is available on ', a({href: 'https://github.com/jmlamare/websamples/blob/main/vanillajs-todomvc.html', style: {color:'blue'}}, 'github'), ' (Jean-Marie LAMARE)')
+                        p('This version is available on ', a({href: 'https://github.com/jmlamare/websamples/blob/main/vanillajs-todomvc-easy.html', style: {color:'blue'}}, 'github'), ' (Jean-Marie LAMARE)')
                     )
                 );
             }
