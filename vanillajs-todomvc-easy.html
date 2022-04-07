@@ -54,6 +54,33 @@
     -->
     <script>
 
+        // Pattern 
+        function widget(options) {
+            let state = {};
+            let html = document.createElement('input');
+            html.setAttribute("type", "button");
+            html.addEventListener('click', function(event) {
+                options.onIncrement(state.count);
+            });
+            return function hydrate(arg) {
+                if(!arg || arg instanceof HTMLElement) { // mount / unmount DOM
+                    if(html.parentNode) html.parentNode.removeChild(html);
+                    if(arg) arg.appendChild(html);
+                } else { // hydrate DOM
+                    let {count} = state = Object.assign(state, arg);
+                    html.value = "Count = " + count;
+                }
+                return hydrate;
+            }
+        }
+
+        let hydrateWidget = widget({
+            onIncrement: function(count) {
+                hydrateWidget({count: count+1});
+            }
+        })({count:0})(document.body);
+
+
         var html = (function() {
             function factory(element, items) {
                 for(let item of items) {
